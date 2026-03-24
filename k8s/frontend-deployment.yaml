@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devops-frontend
+  template:
+    metadata:
+      labels:
+        app: devops-frontend
+    spec:
+      containers:
+        - name: devops-frontend
+          image: ghcr.io/GallarJ1/devops-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80

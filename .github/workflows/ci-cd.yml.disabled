@@ -1,0 +1,99 @@
+name: CI-CD DevOps Platform
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/devops-platform-api
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/devops-frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+
+      - name: Set up Docker metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+
+  deploy-local-k8s:
+    needs: build-and-push
+    runs-on: [self-hosted, windows, x64]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Update backend image
+        run: |
+          kubectl set image deployment/devops-platform-api devops-platform-api=${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Apply frontend manifests
+        run: |
+          kubectl apply -f k8s/frontend-deployment.yaml
+          kubectl apply -f k8s/frontend-service.yaml
+
+      - name: Update frontend image
+        run: |
+          kubectl set image deployment/devops-frontend devops-frontend=${{ env.FRONTEND_IMAGE }}:latest
+
+      - name: Wait for backend rollout
+        run: |
+          kubectl rollout status deployment/devops-platform-api
+
+      - name: Wait for frontend rollout
+        run: |
+          kubectl rollout status deployment/devops-frontend
+
+      - name: Show services
+        run: |
+          kubectl get svc

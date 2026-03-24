@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-platform-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: devops-platform-api
+  template:
+    metadata:
+      labels:
+        app: devops-platform-api
+    spec:
+      serviceAccountName: devops-platform-api-sa
+      containers:
+        - name: devops-platform-api
+          image: ghcr.io/GallarJ1/devops-platform-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 8
+            periodSeconds: 10
