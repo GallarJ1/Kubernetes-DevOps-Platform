@@ -124,6 +124,9 @@ function App() {
   const [metricsHistory, setMetricsHistory] = useState<MetricsHistoryResponse | null>(null);
   const [platformSummary, setPlatformSummary] = useState<PlatformSummaryResponse | null>(null);
   const [activityLog, setActivityLog] = useState<string[]>([]);
+  const [apiStatus, setApiStatus] = useState<"waking" | "online" | "offline">("waking");
+  const [bootMessage, setBootMessage] = useState("Waking Azure Container Apps demo runtime...");
+
 
   const [trafficRequests, setTrafficRequests] = useState(25);
   const [trafficDelay, setTrafficDelay] = useState(100);
@@ -133,9 +136,20 @@ function App() {
     new Date(timestamp * 1000).toLocaleTimeString();
 
   const getHealth = async () => {
-    const res = await axios.get<HealthResponse>(`${API}/health`);
+  try {
+    const res = await axios.get<HealthResponse>(`${API}/health`, {
+      timeout: 10000,
+    });
+
     setHealth(res.data);
-  };
+    setApiStatus("online");
+    setBootMessage("Demo runtime online.");
+  } catch (error) {
+    setApiStatus("waking");
+    setBootMessage("Demo runtime is starting up. This can take 1–2 minutes on the free/cost-saving Azure tier.");
+    console.error("Health check failed:", error);
+  }
+};
 
   const getInfo = async () => {
     const res = await axios.get<InfoResponse>(`${API}/info`);
@@ -267,12 +281,25 @@ function App() {
       <header className="hero">
         <h1>DevOps Control Center</h1>
         <div className="live-indicator">
-          <span className="pulse"></span> Live API | {k8sRuntime?.demo_mode ? "⚠ Demo Runtime" : "K8s Connected"}
+          <span className="pulse"></span>
+            {apiStatus === "online"
+            ? `Live API | ${k8sRuntime?.demo_mode ? "Demo Runtime" : "K8s Runtime"}`
+            : "Live Frontend | Waking Demo Runtime..."}
         </div>
         <p>
           Interactive frontend for service health, deployment data, request
           testing, runtime metrics, and Kubernetes autoscaling visibility.
         </p>
+
+        {apiStatus !== "online" && (
+        <div className="warmup-banner">
+        <strong>Starting demo runtime...</strong>
+        <span>{bootMessage}</span>
+        <span className="warmup-subtext">
+          The frontend loaded successfully. The backend may need a short cold-start before the dashboard becomes interactive.
+        </span>
+      </div>
+      )}  
       </header>
 
       <section className="grid two">
